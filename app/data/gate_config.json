@@ -1,0 +1,35 @@
+{
+  "r_floor": 0.3,
+  "r_open": 0.6,
+  "escape_days": 5,
+  "gate_floor_normal": 0.0,
+  "gate_floor_escape": 0.05,
+  "alpha_up": 0.13,
+  "alpha_down": 0.05,
+  "v0_rhythm": 0.2,
+  "eta_by_energy": {
+    "1": 0.4,
+    "2": 0.5,
+    "3": 0.6,
+    "4": 0.8,
+    "5": 1.0
+  },
+  "morning_reward_hana_money": 20,
+  "evening_reward_hana_money": 20,
+  "capture_reward_hana_money": 30,
+  "mission_reward_by_difficulty": { "1": 20, "2": 30, "3": 40, "4": 50 },
+  "autonomy_start_stage_bounds": [
+    { "max_autonomy": 0.2, "stage": 1 },
+    { "max_autonomy": 0.4, "stage": 2 },
+    { "max_autonomy": 0.6, "stage": 3 },
+    { "max_autonomy": 1.01, "stage": 4 }
+  ],
+  "fallback_first_gate_below": 0.5,
+  "fallback_first_energy_at_or_below": 2,
+  "connection_unlock_count_bounds": [
+    { "max_connection": 0.2, "count": 5 },
+    { "max_connection": 0.4, "count": 4 },
+    { "max_connection": 0.6, "count": 3 },
+    { "max_connection": 1.01, "count": 2 }
+  ]
+}

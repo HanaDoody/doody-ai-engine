@@ -1,0 +1,23 @@
+[
+  {
+    "pin_id": "pin_conv_seed01",
+    "location": { "lat": 37.5000, "lng": 127.0300 },
+    "dudy_id": "d_happy",
+    "tier": "common",
+    "delta_connection": 0.03
+  },
+  {
+    "pin_id": "pin_library_seed01",
+    "location": { "lat": 37.5010, "lng": 127.0310 },
+    "dudy_id": "d_library",
+    "tier": "rare",
+    "delta_connection": 0.05
+  },
+  {
+    "pin_id": "pin_hana_signature_seed01",
+    "location": { "lat": 37.5020, "lng": 127.0320 },
+    "dudy_id": "d_connection_signature",
+    "tier": "signature",
+    "delta_connection": 0.08
+  }
+]

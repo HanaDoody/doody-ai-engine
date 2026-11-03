@@ -1,0 +1,7 @@
+{
+  "enabled": false,
+  "model": "claude-sonnet-5",
+  "max_tokens": 200,
+  "timeout_seconds": 20,
+  "max_retries": 1
+}

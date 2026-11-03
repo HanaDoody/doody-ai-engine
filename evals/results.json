@@ -1,0 +1,101 @@
+{
+  "mode": "offline",
+  "fallback_copy_audit": [
+    {
+      "situation": "active_normal",
+      "text": "자립 쪽에 아직 남은 다음 칸이 있어. 어렵다면 더 작은 걸로 낮춰도 돼.",
+      "len_ok": true,
+      "no_digit": true,
+      "faithful": true,
+      "tone_ok": true
+    },
+    {
+      "situation": "active_fallback_first",
+      "text": "오늘은 가볍게 이 작은 칸부터 둘게. 이것도 한 걸음이야.",
+      "len_ok": true,
+      "no_digit": true,
+      "faithful": true,
+      "tone_ok": true
+    },
+    {
+      "situation": "active_signature",
+      "text": "자립 길의 마지막 칸이야. 이 확인만 마치면 접점이 열려.",
+      "len_ok": true,
+      "no_digit": true,
+      "faithful": true,
+      "tone_ok": true
+    },
+    {
+      "situation": "escape_hatch",
+      "text": "아주 작은 것 하나만 열어둘게. 안 해도 괜찮아.",
+      "len_ok": true,
+      "no_digit": true,
+      "faithful": true,
+      "tone_ok": true
+    },
+    {
+      "situation": "gated_warmup",
+      "text": "오늘은 행동 미션보다 리듬만 붙잡아도 괜찮아.",
+      "len_ok": true,
+      "no_digit": true,
+      "faithful": true,
+      "tone_ok": true
+    },
+    {
+      "situation": "gated_done",
+      "text": "자립 길을 끝까지 걸었어. 오늘은 리듬만 붙잡아도 충분해.",
+      "len_ok": true,
+      "no_digit": true,
+      "faithful": true,
+      "tone_ok": true
+    }
+  ],
+  "guard_mechanism": [
+    {
+      "case": "정상 짧은 문구",
+      "expected": true,
+      "got": true,
+      "pass": true
+    },
+    {
+      "case": "길이 초과",
+      "expected": false,
+      "got": false,
+      "pass": true
+    },
+    {
+      "case": "숫자 포함(짧은필드)",
+      "expected": false,
+      "got": false,
+      "pass": true
+    },
+    {
+      "case": "숫자 포함(서사필드)",
+      "expected": true,
+      "got": true,
+      "pass": true
+    },
+    {
+      "case": "빈 문자열",
+      "expected": false,
+      "got": false,
+      "pass": true
+    }
+  ],
+  "observability": {
+    "calls": 6,
+    "disabled": 6,
+    "api_ok": 0,
+    "api_fail": 0,
+    "generations": 6,
+    "used_llm": 0,
+    "fallback": 6,
+    "guard_trips": 0,
+    "fallback_rate": 1.0,
+    "guard_trip_rate": 0.0,
+    "latency_ms_avg": null,
+    "latency_ms_p50": null,
+    "latency_ms_p95": null,
+    "tokens_total": 0
+  }
+}

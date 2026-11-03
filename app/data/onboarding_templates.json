@@ -1,0 +1,25 @@
+{
+  "choice_values": {
+    "1": 0.1,
+    "2": 0.3,
+    "3": 0.5,
+    "4": 0.7
+  },
+  "questions": [
+    {
+      "axis": "rhythm",
+      "question_id": "q_rhythm_morning",
+      "text": "최근 일주일 동안 하루를 시작하는 게 어땠나요?"
+    },
+    {
+      "axis": "autonomy",
+      "question_id": "q_autonomy_money",
+      "text": "최근 돈이나 소비 내역을 마주하는 게 어땠나요?"
+    },
+    {
+      "axis": "connection",
+      "question_id": "q_connection_contact",
+      "text": "누군가에게 연락하거나 문의해야 할 일이 생기면 어떤가요?"
+    }
+  ]
+}

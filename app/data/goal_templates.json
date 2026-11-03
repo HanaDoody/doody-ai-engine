@@ -1,0 +1,14 @@
+{
+  "reset_rhythm": {
+    "g": { "rhythm": 0.7, "autonomy": 0.4, "connection": 0.4 },
+    "recommended_period": "1w"
+  },
+  "face_money": {
+    "g": { "rhythm": 0.5, "autonomy": 0.7, "connection": 0.4 },
+    "recommended_period": "1m"
+  },
+  "explore_support": {
+    "g": { "rhythm": 0.5, "autonomy": 0.5, "connection": 0.7 },
+    "recommended_period": "1m"
+  }
+}

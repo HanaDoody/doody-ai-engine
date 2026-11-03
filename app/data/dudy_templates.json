@@ -1,0 +1,38 @@
+[
+  {
+    "id": "d_first_morning",
+    "tier": "common",
+    "axis": null,
+    "earned_reason": "처음으로 아침 리듬을 남겼어요"
+  },
+  {
+    "id": "d_first_night",
+    "tier": "common",
+    "axis": null,
+    "earned_reason": "처음으로 저녁 한 줄을 남겼어요"
+  },
+  {
+    "id": "d_happy",
+    "tier": "common",
+    "axis": "connection",
+    "earned_reason": "집 밖에서 작은 연결을 만났어요"
+  },
+  {
+    "id": "d_library",
+    "tier": "rare",
+    "axis": "connection",
+    "earned_reason": "다시 볼 수 있는 장소 하나를 붙잡았어요"
+  },
+  {
+    "id": "d_autonomy_signature",
+    "tier": "signature",
+    "axis": "autonomy",
+    "earned_reason": "돈을 마주하는 마지막 한 칸에 닿았어요"
+  },
+  {
+    "id": "d_connection_signature",
+    "tier": "signature",
+    "axis": "connection",
+    "earned_reason": "밖의 접점까지 직접 닿았어요"
+  }
+]
