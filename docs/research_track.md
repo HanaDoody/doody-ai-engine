@@ -1,189 +1,196 @@
-# 두디 엔진: 상태 추정의 한계와 확장 가능한 연구 질문
+# Doody Engine: Limits of State Estimation and Research Extensions
 
-이 문서는 두디 AI 엔진의 상태 추정이 기대는 전제와 그 한계를 정리하고, 여기서 확장할 수 있는 연구 질문을 기록한다. 현재 엔진은 규칙 기반으로 동작하며, 아래 내용은 구현 범위 밖의 후속 과제다.
+English | [한국어](./research_track.ko.md)
 
-- 작성 기준: v3.1(v0.7) MVP 설계
-- 관련 문서: [`api_contract.md`](./api_contract.md), [`app/nlu/README.md`](../app/nlu/README.md)
-- 주장 범위: [§11](#11-주장-범위) 참고
+This document records the assumptions behind the Doody AI engine's state estimate, where they fall short, and the research questions that can extend from them. The current engine is rule-based, and the content below is follow-up work outside the implemented scope.
 
----
-
-## 0. 요약
-
-회복 상태는 잠재 변수이고, 관측은 positive-censored이며 샘플링 간격이 불규칙하다. 이 조건에서 단순 추정기는 관측과 기대의 차이(innovation) 중 양의 값만 반영하므로 상승 방향으로 편향된다. 편향은 상태가 낮은 사용자에게서 더 크고, 병목축 오선택으로 이어질 수 있다. 복귀 간격(idle gap)과 발화 probe를 함께 쓰면 무처벌 원칙을 유지하면서 음의 신호를 일부 복원할 수 있다.
-
-이 구조는 probing, identifiability, failure mechanism 연구로 확장 가능하다.
+- Basis: v3.1 (v0.7) MVP design. §6 notes how v3.2 uses the estimate.
+- Related: [`api_contract.md`](./api_contract.md), [`app/nlu/README.md`](../app/nlu/README.md)
+- Claim scope: see [§11](#11-claim-scope)
 
 ---
 
-## 1. 엔진의 두 부분
+## 0. Summary
 
-| 부분 | 구성요소 | 규칙 기반 MVP에서의 상태 |
+The recovery state is a latent variable, and observations are positive-censored and irregularly sampled. Under these conditions, a naive estimator passes only the positive part of the innovation, the difference between observation and expectation, so it is biased upward. The bias is larger for low-state users and can lead to choosing the wrong bottleneck axis. Using idle gaps and utterance probes together could recover part of the negative signal while keeping the no-penalty principle.
+
+This structure can extend to research on probing, identifiability, and failure mechanisms.
+
+---
+
+## 1. Two Parts of the Engine
+
+| Part | Components | Status in the rule-based MVP |
 |---|---|---|
-| 제어 (control) | waypoint, downshift, replanning, η(step size) | 데이터 없이 상태머신과 규칙으로 동작 |
-| 추정 (estimation) | `v_t`(상태), `velocity`, `gap`, `recovery_drag` | §3의 전제가 충족되지 않아 추정값 해석에 제한이 있음 |
+| Control | waypoint, downshift, replanning, η (step size) | Works without data, as a state machine and rules |
+| Estimation | `v_t` (state), `velocity`, `gap`, `recovery_drag` | The assumptions in §3 are not met, which limits how the estimates can be interpreted |
 
-한계는 주로 `v_t`가 실제 상태를 측정한다는 전제에 의존하는 추정 부분에 있다.
+The limits sit mainly in the estimation part, which depends on the assumption that `v_t` measures the actual state. A controller is only as reliable as the state representation grounded in its observations.
 
 ---
 
-## 2. Engagement를 측정으로 보기
+## 2. Engagement as Measurement
 
-사용자가 미션을 수행할 확률은 잠재 상태에 의존한다. 따라서 수행 여부(engagement)는 잠재 상태의 noisy readout으로 볼 수 있으며, 구조는 문항반응이론(IRT)의 Rasch 모델과 같다.
+The probability that a user completes a mission depends on the latent state. Engagement can therefore be read as a noisy readout of that state, with the same structure as the Rasch model in item response theory (IRT).
 
-축 하나(자립 `v`)에 난이도 `τ`인 미션을 제시할 때:
+For one axis (autonomy `v`) and a mission of difficulty `τ`:
 
 ```
-P(E_t = 1 | v_t, τ) = σ( β (v_t − τ_t) )      # 로지스틱, β = 민감도
-v_{t+1} = v_t + η·E_t − δ·(1−E_t) − λ          # 수행 시 상승, 회피와 시간 경과 시 하락
+P(E_t = 1 | v_t, τ) = σ( β (v_t − τ_t) )      # logistic, β = sensitivity
+v_{t+1} = v_t + η·E_t − δ·(1−E_t) − λ          # rises on engagement, falls with avoidance and time
 ```
 
-`E_t`는 `v`에 대한 베르누이 측정이다.
+`E_t` is a Bernoulli measurement of `v`. These equations describe the assumed process used for analysis. They are not the engine's update rule, which §5 compares.
 
 ---
 
-## 3. 추정의 한계: 6가지 원인
+## 3. Limits of the Estimate: Six Causes
 
-| # | 원인 | 메커니즘 |
+| # | Cause | Mechanism |
 |---|---|---|
-| RC1 | 무처벌 설계와 식별성의 충돌 | 회피, 실패, 미수행을 기록하지 않아 관측이 positive-censored가 되고, `v`는 단조 증가하며 `recovery_drag`의 신호가 줄어든다 |
-| RC2 | `v_t`가 상태보다 활동 누적에 가까움 | `Δ`가 수동 설정 상수이므로 `v_t = Σ(완료 미션의 Δ)`가 되고, gap과 drag는 활동량의 결정론적 함수가 된다. 독립적인 readout이 없다 |
-| RC3 | 목표 벡터 `g`가 템플릿 상수 | `g`는 목표 유형별 고정값이며 개인의 실제 목표에서 추정하지 않는다. gap은 템플릿 상수와 활동 누적의 차이가 된다 |
-| RC4 | 불규칙 샘플링 | `v_t − v_{t-1}`은 등간격을 가정하지만, 대상 사용자의 복귀 간격은 불규칙하다 |
-| RC5 | 축 간 비동질성 | 연결축은 장소 기반(GPS) 값이어서 `[0,1]³`의 통약 가정이 약해진다 |
-| RC6 | 학습 루프 부재 | η, Δ, decay, 임계값이 모두 수동 설정이며 보정할 데이터와 정답 신호가 없다 |
+| RC1 | No-penalty design conflicts with identifiability | Avoidance, failure, and non-completion are not recorded, so observations are positive-censored. `v` on the mission-driven axes only rises, and the signal in `recovery_drag` weakens |
+| RC2 | `v_t` is closer to accumulated activity than to state | `Δ` is a hand-set constant, so `v_t = v_0 + Σ(η·Δ of completed missions)`, clamped to [0, 1]. gap and drag become deterministic functions of activity. There is no independent readout |
+| RC3 | The goal vector `g` is a template constant | `g` is a fixed value per goal type and is not estimated from an individual's actual goal. gap becomes the difference between a template constant and accumulated activity |
+| RC4 | Irregular sampling | `v_t − v_{t-1}` assumes equal intervals, but target users return at irregular intervals |
+| RC5 | Heterogeneous axes | The connection axis is location-based (GPS), which weakens the assumption that all axes are commensurable in `[0,1]³` |
+| RC6 | No learning loop | η, Δ, α, and thresholds are all hand-set, with no data or ground-truth signal to calibrate them |
 
-엔진은 추정기와 제어기로 설계되었지만, MVP에는 추정을 보정할 피드백이 없으므로 제어기는 열린 루프로 동작한다.
+The engine is designed as an estimator plus a controller, but the MVP has no feedback to correct the estimate, so the controller runs as an open loop.
+
+The rhythm axis behaves differently from RC1. It is an EMA over check-in presence and can fall through `α_down`. Days with no log at all are skipped, however, so idle days do not lower it.
 
 ---
 
-## 4. 정보 구조: 회피의 정보량
+## 4. Information Structure: What Avoidance Carries
 
-단일 베르누이 응답의 `v`에 대한 Fisher information은 다음과 같다.
+The Fisher information about `v` in a single Bernoulli response is:
 
 ```
 I(v) = β² · p(1−p),   p = σ(β(v−τ))
 ```
 
-- `p = 1/2`에서 최대이므로, 미션 난이도 `τ`가 상태 `v`에 가까울 때 정보량이 가장 크다.
-- 쉬운 미션(`τ≪v`, `p≈1`)의 성공은 정보량이 거의 없고, 실패는 surprise(`−log p`)가 크다.
-- 검열되는 `E=0`에는 사용자의 상태가 예상보다 낮다는 정보가 포함되어 있다.
+- It peaks at `p = 1/2`, so information is highest when mission difficulty `τ` is close to state `v`.
+- Success on an easy mission (`τ≪v`, `p≈1`) carries almost no information, while failure carries a large surprise (`−log(1−p)`).
+- A censored `E=0` contains the information that the user's state is lower than expected.
 
 ---
 
-## 5. Innovation의 반파정류
+## 5. Half-Wave Rectification of the Innovation
 
-전체 구조를 state-space(POMDP)로 쓰면 다음과 같다.
-
-```
-v_t ──mission_rule π──▶ a_t (난이도 τ_t)
-v_t ──emission──▶ E_t ~ Bern(σ(β(v_t−τ_t)))    # 측정 채널
-(v_t, E_t) ──transition f──▶ v_{t+1}            # 실제 동역학
-E_t ──inference g──▶ v̂_{t+1}                     # 표현 갱신
-```
-
-영향을 받는 부분은 마지막 줄의 emission→inference 경로(`E_t → v̂`)다. Kalman/베이즈 방식의 갱신은 다음과 같다.
+Written formally as a state-space model (POMDP), the structure is as follows. This is notation for the analysis; the engine does not learn a POMDP.
 
 ```
-v̂_{t+1} = v̂_t + K · (E_t − p̂_t)        # innovation = 관측 − 기대
+v_t ──mission_rule π──▶ a_t (difficulty τ_t)
+v_t ──emission──▶ E_t ~ Bern(σ(β(v_t−τ_t)))    # measurement channel
+(v_t, E_t) ──transition f──▶ v_{t+1}            # true dynamics
+E_t ──inference g──▶ v̂_{t+1}                     # representation update
 ```
 
-회피(`E=0`)는 음의 innovation이므로 추정값을 낮춘다. 검열은 이 경로를 끊는 대신 음의 성분만 제거한다(half-wave rectification).
+The affected part is the emission→inference path in the last line (`E_t → v̂`). A Kalman or Bayesian update is:
+
+```
+v̂_{t+1} = v̂_t + K · (E_t − p̂_t)        # innovation = observation − expectation
+```
+
+Avoidance (`E=0`) is a negative innovation and lowers the estimate. Censoring does not cut this path. It removes only the negative part (half-wave rectification):
 
 ```
 v̂_{t+1} = v̂_t + K · max(0, E_t − p̂_t)
 ```
 
-그 결과 상방 보정만 남아 `v̂`가 단조 상승한다. RC1의 단조 증가는 이 메커니즘으로 설명된다. 동역학이나 미션 선택 규칙이 아니라 측정→추론 경로의 음의 성분이 빠지는 것이다.
+Only upward corrections remain, so `v̂` rises monotonically. This mechanism explains the monotonic rise in RC1. What drops out is the negative part of the measurement→inference path, not the dynamics or the mission selection rule.
+
+The engine's actual update is `v_{t+1} = v_t + η·Δ` with `Δ > 0` on the mission-driven axes, and it has no `p̂` term. Rejecting a mission does not change ARI. The equation above is an approximation that describes this positive-only structure.
 
 ---
 
-## 6. 편향의 방향과 차등성
+## 6. Direction and Differential Size of the Bias
 
-`E=1`만 관측하면 `E=1`에 조건부로 추정하게 된다(selection on the dependent variable).
-
-```
-관측 분포 = P(v | E=1) ≠ P(v)
-```
-
-`E=1`은 `v`가 높을수록 자주 발생하므로, `P(v|E=1)`은 평균이 위로 치우치고 분산은 작아진다.
-
-이 편향은 사용자의 상태에 따라 크기가 다르다.
+Observing only `E=1` means estimating conditional on `E=1` (selection on the dependent variable).
 
 ```
-편향 크기는 검열 확률 P(E=0|v) = σ(β(τ−v))에 따라 증가하며, 이 확률은 v가 낮을수록 크다
+observed distribution = P(v | E=1) ≠ P(v)
 ```
 
-상태가 낮은 사용자일수록 회피가 많고, 그만큼 관측이 검열되어 과대추정된다. 이는 Goal-Based Intervention이 이들의 병목축을 잘못 선택하는 결과로 이어질 수 있다.
+`E=1` occurs more often at higher `v`, so `P(v|E=1)` has a higher mean and tends to have a smaller variance.
+
+The size of this bias differs by user state.
+
+```
+The bias grows with the censoring probability P(E=0|v) = σ(β(τ−v)), which is larger at lower v
+```
+
+Low-state users avoid more, so more of their observations are censored and their state is overestimated. This can lead Goal-Based Intervention to choose the wrong bottleneck axis for them. In v3.2, `recovery_drag` feeds `bottleneck_axis`, which can replace today's card with a connection prompt, so the bias can reach the action the user sees.
 
 ---
 
-## 7. 식별 가능성
+## 7. Identifiability
 
-Positive-only 데이터에서 각 대상의 식별 가능성은 다음과 같다.
+From positive-only data:
 
-| 대상 | 식별 가능성 | 비고 |
+| Target | Identifiability | Note |
 |---|---|---|
-| `v`의 순서, engagement rate | 식별 가능 | |
-| `v`의 수준 | 부분 식별 | 저-`v` 구간에서 하한이 위로 밀림 |
-| 하방 동역학 `δ, λ`(회피율, 감쇠율) | 식별 불가 | 하락을 관측하지 않으므로 회복 속도는 추정할 수 있어도 재발 속도는 추정할 수 없음 |
+| Order of `v`, engagement rate | Identified | |
+| Level of `v` | Partially identified | The lower bound shifts upward at low `v` |
+| Downward dynamics `δ, λ` (avoidance and decay rates) | Not identified | Decreases are never observed, so recovery speed can be estimated but relapse speed cannot |
 
 ---
 
-## 8. 확장 방향: 무처벌 원칙을 유지한 음의 신호 복원
+## 8. Extensions: Recovering Negative Signal Under the No-Penalty Principle
 
-### (a) Idle gap: 우측검열 inter-event time
+### (a) Idle gap: right-censored inter-event time
 
-회피를 실패로 기록하지 않아도 복귀 시점은 남는다. 상태가 낮은 사용자의 복귀 간격이 길다고 가정하면 return time에 survival/hazard 모델을 적용할 수 있다.
-
-```
-P(돌아옴 ≤ Δt | v) = 1 − exp(−h(v)·Δt),   h(v) = 위험률 (v가 낮을수록 작음)
-```
-
-Idle gap은 반파정류되지 않은 음의 성분이며, 사용자에게 처벌이나 노출로 작용하지 않는다. 이 관점에서는 RC4의 불규칙 샘플링도 정보로 활용할 수 있고, `δ, λ`의 식별 가능성을 높일 수 있다.
-
-### (b) 발화 probe: 두 번째 측정 채널
-
-Engagement 채널은 `E=1`에 selection된다. 발화 임베딩에서 `v`를 읽는 probe는 미션을 회피한 날의 발화도 사용할 수 있어 selection 구조가 다르다. 두 채널을 결합하면 잠재 상태의 식별 영역을 넓힐 수 있다.
+Even if avoidance is not recorded as failure, the return time remains. Assuming that low-state users take longer to return, a survival or hazard model can be applied to return time.
 
 ```
-채널 1 (engagement): E=1에 selection, 상방 편향
-채널 2 (utterance probe): 회피일의 발화도 포함, 다른 selection
-결합: latent v의 식별 영역 확장
+P(return ≤ Δt | v) = 1 − exp(−h(v)·Δt),   h(v) = hazard rate (smaller at lower v)
 ```
 
-발화 probing의 설계와 연구 질문은 [`app/nlu/README.md`](../app/nlu/README.md)에 정리했다.
+The idle gap is a negative component that is not half-wave rectified, and it does not act on the user as a penalty or exposure. From this view, the irregular sampling in RC4 can also serve as information and could improve the identifiability of `δ, λ`.
+
+### (b) Utterance probe: a second measurement channel
+
+The engagement channel is selected on `E=1`. A probe that reads `v` from utterance embeddings can also use utterances from days when the user avoided a mission, so its selection structure differs. If the probe carries state signal, combining the two channels could widen the identified region of the latent state.
+
+```
+Channel 1 (engagement): selected on E=1, upward bias
+Channel 2 (utterance probe): includes utterances on avoidance days, different selection
+Combined: wider identified region for latent v
+```
+
+The design and research questions for utterance probing are in [`app/nlu/README.md`](../app/nlu/README.md).
 
 ---
 
-## 9. Interpretability 연구와의 구조적 대응
+## 9. Structural Analogy to Interpretability Research
 
-이 분석은 입력, 표현, 행동의 경로에서 실패 지점을 좁혀 가는 방식이 mechanistic interpretability와 유사하다.
+This analysis resembles mechanistic interpretability in how it narrows down a failure point along the path from input to representation to behavior. It is an analogy of method: the state here is hand-designed, not a learned representation.
 
-| Transformer interpretability | 두디 엔진 |
+| Transformer interpretability | Doody engine |
 |---|---|
-| 행동(실패) 관찰 | 저-`v` 사용자에 대한 Goal-Based Intervention의 과소 지원 |
-| 회로/경로 국소화 | 측정→추론 경로의 음의 성분 |
-| 변환 특성화 | innovation의 반파정류 |
-| 편향 방향과 크기 도출 | selection on the DV, 상방 편향, `σ(β(τ−v))`에 따른 차등 |
-| 실패 예측과 개입 | 저-`v` 축 오선택, idle gap과 probe를 통한 교정 |
+| Observe a behavior (failure) | Goal-Based Intervention under-serves low-`v` users |
+| Localize a circuit or path | The negative part of the measurement→inference path |
+| Characterize the transformation | Half-wave rectification of the innovation |
+| Derive the direction and size of a bias | Selection on the DV, upward bias, differential by `σ(β(τ−v))` |
+| Predict and intervene on failure | Wrong axis at low `v`, corrected through idle gaps and probes |
 
 ---
 
-## 10. 연구 로드맵
+## 10. Research Roadmap
 
-| 단계 | 할 일 | 산출물 |
+| Stage | Work | Output |
 |---|---|---|
-| R0 (MVP와 병행) | `(상태, 추천, 결과 프록시)` 튜플 로깅, 독립 readout 1개 확보(에너지 탭 또는 발화), idle gap 기록 | 데이터 인프라 |
-| R1 (시뮬레이션) | `δ, λ` 참값을 설정하고 검열을 적용해 저-`v`에서의 `v̂` 편향과 두 복원 채널의 효과 확인 | 편향 곡선 |
-| R2 (probing) | Ko-SBERT 등 발화 임베딩에 리듬, 자립, 연결 linear probe 또는 prototype similarity 적용 | RQ: 짧은 발화가 회복 축 신호를 담는가? |
-| R3 (식별) | idle-gap hazard와 probe 채널을 결합한 censored-likelihood 추정 | `δ, λ` 식별 가능성 검증 |
-| R4 (failure) | 어떤 검열 조건에서 `recovery_drag`가 틀린 축을 고르는지 분석 | failure-mode 지도 |
+| R0 (with the MVP) | Log `(state, recommendation, outcome proxy)` tuples, secure one independent readout (energy tap or utterance), record idle gaps | Data infrastructure |
+| R1 (simulation) | Set true `δ, λ`, apply censoring, and examine the `v̂` bias at low `v` and the effect of the two recovery channels | Bias curves |
+| R2 (probing) | Apply a linear probe or prototype similarity for rhythm, autonomy, and connection to utterance embeddings such as Ko-SBERT | RQ: do short utterances carry recovery-axis signal? |
+| R3 (identification) | Censored-likelihood estimation combining the idle-gap hazard and the probe channel | Test of `δ, λ` identifiability |
+| R4 (failure) | Analyze under which censoring conditions `recovery_drag` picks the wrong axis | Failure-mode map |
 
 ---
 
-## 11. 주장 범위
+## 11. Claim Scope
 
-- 이 문서의 편향 분석은 모델 구조에서 도출한 것이며, 실제 사용자 데이터로 측정한 결과가 아니다.
-- 현재 표현할 수 있는 범위는 "이 구조에서는 이런 편향이 예상되며, 이를 고려해 설계했다"까지다.
-- 이 레포에는 위 편향에 대한 측정 또는 시뮬레이션 결과가 포함되어 있지 않다.
+- The bias analysis here is derived from the model structure. It is not a result measured on user data, and there is no ground truth for users' recovery.
+- The claim that can be made today is: "this structure is expected to produce this bias, and the design takes it into account."
+- This repository contains no measurement or simulation results for this bias.
+- The ARI state is designed, not learned. Idle-gap and utterance-probe recovery are follow-up directions and have not been validated.

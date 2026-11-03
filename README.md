@@ -119,7 +119,7 @@ Doody's AI is **neither a black box that judges nor a generative model trained o
 | Document | Contents |
 |---|---|
 | [`DESIGN.md`](./DESIGN.md) | **Design decisions (ADR)**: deterministic core + LLM surface · stateless · crisis safety guard · cost gating (Korean) |
-| [`docs/research_track.md`](./docs/research_track.md) | How positive-only engagement logs can bias state estimates upward for low-state users, and research questions this extends to (Korean) |
+| [`docs/research_track.md`](./docs/research_track.md) | How positive-only engagement logs can bias state estimates upward for low-state users, and research questions this extends to |
 | [`docs/api_contract.md`](./docs/api_contract.md) | API contract: request and response JSON · common objects · backend storage · glossary (Korean) |
 | [`app/nlu/README.md`](./app/nlu/README.md) | Design of embedding-based signal extraction (Korean) |
 | [`evals/README.md`](./evals/README.md) | LLM eval and observability harness (Korean) |

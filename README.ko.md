@@ -120,7 +120,7 @@ AI 엔진은 **DB를 갖지 않는다(stateless).** 매 호출마다 백엔드�
 | 문서 | 내용 |
 |---|---|
 | [`DESIGN.md`](./DESIGN.md) | **설계 결정(ADR)** — 결정론 코어 + LLM 표면 · stateless · 위기 안전가드 · 비용 게이팅 |
-| [`docs/research_track.md`](./docs/research_track.md) | 상태 추정의 한계와 확장 가능한 연구 질문 |
+| [`docs/research_track.ko.md`](./docs/research_track.ko.md) | 상태 추정의 한계와 확장 가능한 연구 질문 |
 | [`docs/api_contract.md`](./docs/api_contract.md) | API 계약 — 요청/응답 JSON·공통 객체·백엔드 저장 데이터·용어집 |
 | [`app/nlu/README.md`](./app/nlu/README.md) | 임베딩 기반 신호 추출 설계 |
 | [`evals/README.md`](./evals/README.md) | LLM eval / observability 하네스 |
