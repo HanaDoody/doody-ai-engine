@@ -1,66 +1,68 @@
-# DESIGN — 두디 AI 엔진 설계 결정
+# DESIGN: Doody AI Engine Design Decisions
+
+English | [한국어](./DESIGN.ko.md)
 
 **Status**: Accepted · 2026-07 (v3.2)
 
-이 문서는 두디 AI 엔진의 핵심 설계 결정을 ADR 형식으로 기록한다. *한 것*이 아니라 *왜 그렇게 했는가*를 남긴다.
+This document records the core design decisions of the Doody AI engine and the reasons for them, in ADR format.
 
-## D0: 결정론 코어 + LLM 언어 표면
+## D0: Separating the Deterministic Core from LLM Narration
 
-**Context**: 취약한 사용자(공백 청년)에게 매일 "다음 한 걸음"을 준다. 문구는 사람 같고 따뜻해야(→ 생성 모델 유리) 하지만, 판정은 안전·일관·검증 가능해야(→ 생성 모델 불리: 비결정성·비용·환각) 한다.
+**Context**: The engine suggests a next action every day to vulnerable users (young adults on a long gap from work, school, or social life, 공백 청년). The text should read naturally and warmly, which favors a generative model. Decisions must be safe, consistent, and verifiable, which works against one because of nondeterminism, cost, and hallucination.
 
-**Decision**: 판정(무엇을·얼마나·언제)은 결정론 코어가 소유하고, LLM은 그 결정을 **언어로만 렌더링**한다.
-- 코어(상태공간 수학)가 미션·크기·게이트·해금을 계산하고 `decision_trace`를 남긴다
-- LLM(Sonnet 5)은 trace를 받아 **말투만** 입힌다 — 결정을 오버라이드할 수 없다
-- 단일 길목 [`llm/client.py`](app/llm/client.py)의 `complete()`는 **절대 예외를 던지지 않는다** → 실패 시 `None` → 필드별 결정론 폴백
-- 가드레일: 길이 + (짧은 필드)숫자 차단으로 LLM 출력을 검문
+**Decision**: The deterministic core makes the decision (what, how much, when), and the LLM only writes the result as text.
+- The core (state-space formulas) computes the mission, size, gate, and unlocks, and records a `decision_trace`
+- The LLM (Sonnet 5) only generates text and cannot change a decision. Its input is the trace for mission text, the user's raw text and an action set by rules for `chat`, and the user's raw text for `evening`
+- All calls go through [`llm/client.py`](app/llm/client.py). `complete()` does not raise exceptions and returns `None` on failure, in which case the fallback text for that field is used
+- LLM output is checked for length, and short fields are also checked for digits
 
 **Alternatives considered**
-- **LLM-as-decider** (LLM이 미션까지 결정): 비결정적·안전 회귀(취약 유저에 위험 제안 가능)·비용/지연·테스트 불가 → 기각
-- **순수 룰, LLM 없음**: 안전·결정적이나 말투가 차갑고 반복적, 회복 맥락에 부적합 → 기각
+- **LLM also chooses the mission**: nondeterministic, could suggest something risky to a vulnerable user, higher cost and latency, and hard to test. Not adopted
+- **Rules only, no LLM**: safe and deterministic, but the text is repetitive and does not suit a recovery context. Not adopted
 
 **Consequences**
-- (+) 결정 재현·테스트 가능 · LLM 장애가 서비스 장애로 전파 안 됨 · 판정이 해석 가능
-- (−) 문구 유연성 제한(카탈로그 + trace에 묶임) · 프롬프트 유지비
+- (+) Decisions can be reproduced and tested · LLM outages do not become service outages · the basis of each decision can be inspected
+- (−) Text is limited to the catalog and trace · prompt maintenance cost
 
 ---
 
-## 지원 결정
+## Other Decisions
 
-### D1 — Stateless 엔진 (저장은 백엔드)
-**Context**: 상태(ARI·이력·수집 개수·리듬 seed)를 누가 소유하나.
+### D1: Stateless Engine (Storage in the Backend)
+**Context**: Where should the state (ARI, history, collected count, rhythm seed) be managed?
 
-**Decision**: 엔진은 DB를 갖지 않는다. 매 호출마다 백엔드가 필요한 상태를 실어 보내고, 엔진은 계산 결과만 돌려준다. *"엔진이 요구하는 입력 = 백엔드가 저장할 것."*
+**Decision**: The engine has no database. On every call the backend sends the state it needs, and the engine returns only the computed result. The engine's input is the data the backend must store.
 
-**왜**: 엔진이 순수 함수에 가까워짐 → 테스트·수평 확장 쉬움, 개인정보를 엔진이 쥐지 않음, 역할 경계가 명확.
+**Why**: The engine stays close to a pure function, which makes testing and horizontal scaling easier. It stores no personal data, and role boundaries are clear.
 
-**Tradeoff**: 매 호출이 전체 상태를 실어야 함(페이로드↑), 누적(하나머니·수집 count·리듬 seed 고정)은 백엔드 책임 — 이것이 백엔드 전달 사항의 근원이다.
+**Tradeoff**: Every call must send the full state, so payloads are larger, and the backend must manage accumulated values (Hana Money, collected count, rhythm seed). When the LLM is on, raw `chat` and `evening` text without a crisis signal is sent to the Anthropic API.
 
-### D2 — 위기 안전가드 (LLM 우회)
-**Context**: `chat`·`evening`은 사용자 원문을 LLM이 읽고 답한다. 위기 상황에서 생성 모델이 즉흥적으로 답하면 안 된다.
+### D2: Crisis Safety Guard (Bypassing the LLM)
+**Context**: In `chat` and `evening`, the LLM reads the user's raw text and replies. Responses in a crisis are not left to a generative model.
 
-**Decision**: 원문에 위기 키워드 감지 시([`safety.py`](app/llm/safety.py) + [`crisis_terms.json`](app/data/crisis_terms.json)) LLM을 우회하고 **고정 안전문구** + `suggested_action="none"`을 반환한다. 보상은 정상 지급. 실제 위기 리소스(상담번호·기관)는 프론트 상시 위기버튼이 담당한다.
+**Decision**: When a crisis keyword is detected in the raw text ([`safety.py`](app/llm/safety.py) + [`crisis_terms.json`](app/data/crisis_terms.json)), the engine does not call the LLM and returns **fixed safety text**. `chat` also returns `suggested_action="none"`, and the `evening` reward is granted as usual. Directing users to actual crisis resources (hotlines, institutions) is outside the engine and was assigned to the frontend.
 
-**왜**: 안전 경로는 생성 모델에 맡기지 않는다 — 결정론이어야 한다. 엔진은 *플래그만*, 리소스는 프론트가 분리 담당.
+**Why**: The safety path must be deterministic.
 
-**Tradeoff**: 키워드 기반은 최소 바닥선(오탐/미탐 존재) → 임상 자문 확장은 열린 항목.
+**Tradeoff**: Keyword matching produces false positives and misses. Extending it with clinical advice remains open.
 
-### D3 — 비용 게이팅 (기본 off)
-**Context**: LLM 호출이 비용·지연이 발생하는 유일한 지점.
+### D3: Cost Gating (Off by Default)
+**Context**: LLM calls are the only point that incurs cost and latency.
 
-**Decision**: `is_enabled()` = (`config.enabled` OR `LLM_ENABLED` env) AND `ANTHROPIC_API_KEY`. **레포 기본 [`llm_config.json`](app/data/llm_config.json) `enabled:false`** → 소스를 안 건드리고 **프로덕션에서만 env로 켠다**(`LLM_ENABLED=true` + 키). 키가 없으면 무엇을 켜도 꺼짐.
+**Decision**: `is_enabled()` = (`config.enabled` OR `LLM_ENABLED` env) AND `ANTHROPIC_API_KEY`. The repository default is `enabled:false` in [`llm_config.json`](app/data/llm_config.json), and production turns it on through env without source changes (`LLM_ENABLED=true` + key). Without a key, it stays off.
 
-**왜**: 배포가 기본적으로 안전(실수로 과금 X), LLM이 꺼져도/실패해도 결정론 폴백으로 정상 동작.
+**Why**: There is no accidental billing, and the engine still works on fallback text when the LLM is off or fails.
 
-**Tradeoff**: 기본 배포 상태에선 다소 밋밋한 폴백 문구가 나간다(켜기 전까지).
-
----
-
-## Revisit triggers (스케일 시 다시 볼 것)
-- 호출량↑ → 시스템 프롬프트 캐싱 · 배칭
-- 폴백 문구 품질 이슈 → eval 게이트 / 폴백 재작성
-- 위기 키워드 → 임상 자문으로 확장
-- 표현을 로그에서 학습하거나 probing으로 검증하는 확장 — 현재 표현은 **설계된 것**이지 학습된 것이 아니다
+**Tradeoff**: Fallback text is served until the LLM is turned on.
 
 ---
 
-> 엔진이 정확히 무엇을 계산하는지(수식·상태공간)는 [`README.md`](README.md)의 *"AI 엔진이 정확히 하는 일"* 참고.
+## Revisit Conditions
+- Higher call volume: system prompt caching and batching
+- Fallback text quality issues: eval gate, rewriting the text
+- Crisis keywords: incorporating clinical advice
+- Representation learning: the current representation is hand-designed and can extend to learning from logs and validation through probing
+
+---
+
+> For the formulas and state space the engine computes, see *"What the AI Engine Does"* in [`README.md`](README.md).

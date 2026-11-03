@@ -5,13 +5,13 @@ llm/client.py — LLM 생성 API 호출의 단일 길목 (chokepoint)
   text_generator.py · report_writer.py 가 직접 provider를 부르지 않고,
   전부 이 파일을 거친다. 즉 "어느 모델을 어떻게 부르나"는 여기서만 결정한다.
   (호출 주체는 동적 텍스트가 필요한 엔드포인트뿐: onboarding/mission/chat/report.
-   core/ 의 도메인 수학은 LLM을 부르지 않는다 — 결정/서술 분리, llm/README ①.)
+   core/ 의 도메인 수학은 LLM을 부르지 않는다 — 결정/서술 분리.)
 
 여기 한 곳에 가두는 것
   - API 키 / provider 선택            (config.py · .env)
   - 모델 라우팅 · 파라미터            (llm_config.json)
   - 에러 · 타임아웃 · 거절
-  - 폴백: LLM 이상 시 결정론 문구로 강등 (서비스 안 죽게, llm/README ⑥)
+  - 폴백: LLM 이상 시 결정론 문구로 강등 (서비스 안 죽게)
 
 L0 (배선) 원칙 — 이 파일은 절대 예외를 밖으로 던지지 않는다.
   disabled / 키 없음 / SDK 없음 / API 오류 / 타임아웃 / 거절 / 빈 응답
